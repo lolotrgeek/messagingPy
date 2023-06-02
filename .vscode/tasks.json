@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "austin",
+            "label": "Profile main.py",
+            "file": "main.py",
+            "args": ["-sg", "--verbose"]
+        }
+    ]
+}
