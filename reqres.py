@@ -36,6 +36,8 @@ class Responder():
                 if self.res.qsize() > self.highwatermark:
                     self.res.get() # clears oldest response
                 message = self.req.get()
+                nones = 0
+                messages = 0
                 if type(message) is not dict:
                     continue
                 elif message.get("id") is None:
@@ -46,16 +48,19 @@ class Responder():
                     id = message.get("id")
                     message.get("message")
                     self.res.put({"id": id, "response": response})
-                    return True                    
+                    continue
+                                    
         except Exception as e:
             print(e)
-            return None
+            pass
+        finally:
+            print(messages, "messages responded per second and ", nones, "nones")
 
 class Requester():
     def __init__(self, req, res):
         self.req = req
         self.res = res
-        self.max_listens = 500
+        self.max_listens = 1000
 
     def request(self, topic):
         try:
@@ -64,6 +69,7 @@ class Requester():
             listening = 0
             while True:
                 if listening >= self.max_listens:
+                    print("max listens reached")
                     return None
                 listening += 1
                 responses = self.res.get_attribute("queue")
@@ -73,30 +79,15 @@ class Requester():
                     return response
         except Exception as e:
             # print(e)
-            return None
-
+            pass
 
 def respond(req, res):
     try:
         p = Responder(req, res)
-        nones = 0
-        messages = 0
-        start = time()
-        max_count = 10
-        while True:
-            if(time()-start >= max_count):
-                end = time()
-                break
-            msg = p.respond("Hello", "World")
-            if msg == None:
-                nones += 1
-            elif msg:
-                messages += 1
-    
+        p.respond("Hello", "World")
     except KeyboardInterrupt:
         return
-    finally:
-        print(messages / max_count, "messages responded per second and ", nones, "nones")
+
 
 def request(req, res):
     try:

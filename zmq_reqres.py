@@ -27,16 +27,22 @@ class Responder():
             context = zmq.Context()
             socket = context.socket(zmq.REP)
             socket.bind('tcp://127.0.0.1:5555')
+            nones = 0
+            messages = 0
             while True:
                 msg = socket.recv()
                 if msg == topic:
+                    messages += 1
                     socket.send(response)
                 else:
+                    nones += 1
                     socket.send(None)
+                
         except Exception as e:
             print(e)
             return None
-
+        finally:
+            print(messages, "messages responded per second and ", nones, "nones")
 
 def request():
     try:
@@ -60,16 +66,17 @@ def request():
         return None
     finally:
         print(messages / max_count, "messages received per second and ", nones, "nones")
-        exit(0)
     
 
 def respond():
     try:
         s = Responder()
         s.respond(b"hello", b"world")
+
     except Exception as e:
         print(e)
         return None
+        
 
 if __name__ == '__main__':
 
@@ -82,11 +89,17 @@ if __name__ == '__main__':
     requester.start()
 
     count = 0
-    max_count = 1
+    max_count = 12
 
     try:
         while True:
-            sleep(.1)
+            start = time()
+            while True:
+                if(time()-start >= max_count):
+                    end = time()
+                    break
+            responder.terminate()
+            requester.terminate()
 
     except KeyboardInterrupt:
         print("attempting to close processes..." )
