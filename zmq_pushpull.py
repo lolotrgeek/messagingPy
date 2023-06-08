@@ -11,7 +11,7 @@ class Pusher():
         self.lowwatermark = 1
         self.context = zmq.Context()
         self.zmq_socket = self.context.socket(zmq.PUSH)
-        self.zmq_socket.connect("tcp://127.0.0.1:5555")
+        self.zmq_socket.connect("tcp://127.0.0.1:5558")
         
 
     def push(self, message):
@@ -39,22 +39,29 @@ class Puller():
 
 
 class Router():
-    def __init__(self):
+    def __init__(self, producer='5558', consumer='5556'):
         self.context = zmq.Context()
         self.producer_socket = self.context.socket(zmq.PULL)
-        self.producer_socket.bind("tcp://127.0.0.1:5555")
+        self.producer_socket.bind(f"tcp://127.0.0.1:{producer}")
         self.consumer_socket = self.context.socket(zmq.PUSH)
-        self.consumer_socket.bind("tcp://127.0.0.1:5556")
+        self.consumer_socket.bind(f"tcp://127.0.0.1:{consumer}")
+        self.poller = zmq.Poller()
+        self.poller.register(self.producer_socket, zmq.POLLIN)
 
-    def route(self):
-        try:
-            while True:
-                msg = self.producer_socket.recv_json()
-                self.consumer_socket.send_json(msg)
-
-        except Exception as e:
-            print(e)
-            return    
+    def route(self, cb=None):
+        last_msg = {}
+        while True:
+            try:
+                evts = dict(self.poller.poll(.5))
+                if self.producer_socket in evts:
+                    msg = self.producer_socket.recv_json(zmq.DONTWAIT)
+                    if msg is not None and msg != last_msg and msg != {}:
+                        last_msg = msg
+                # print("last", last_msg)
+                self.consumer_socket.send_json(last_msg)
+            except Exception as e:
+                print(e)
+                continue  
 
 def push():
     try:
@@ -63,6 +70,7 @@ def push():
         messages = 0
         start = time()
         max_count = 10
+
         while True:
             if(time()-start >= max_count):
                 print(messages / max_count, "messages pushed per second and ", nones, "nones")
@@ -112,10 +120,12 @@ if __name__ == '__main__':
 
         pusher = Process(target=push)
         puller = Process(target=pull)
+        puller2 = Process(target=pull)
         router = Process(target=route)
 
         pusher.start()
         puller.start()
+        puller2.start()
         router.start()
 
         while True:
@@ -125,9 +135,11 @@ if __name__ == '__main__':
         print("attempting to close processes..." )
         pusher.terminate()
         puller.terminate()
+        puller2.terminate()
         router.terminate()
         pusher.join()
         puller.join()
+        puller2.join()
         router.join()
         print("processes successfully closed")
 
